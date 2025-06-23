@@ -1,0 +1,88 @@
+1. Roczne koszty Azure Lakehouse
+
+Dane: 10 TB historyczne + 2,4 TB przyrostu rocznego
+Praca analityczna: do 4h dziennie, 5 dni/tydzień
+Mniejsze potrzeby obliczeniowe
+Region: Polska / West Europe
+Ceny podane w PLN
+
+Storage Account	Hot blob storage, 12,4 TB ok. 4 000 PLN
+Azure Databricks	1 klaster: Standard Tier, 4h dziennie	ok. 18 000 PLN
+Azure Key Vault	Standard Tier, podstawowe użycie	ok. 300 PLN
+Azure Data Factory	20h miesięcznie, ok. 100k aktywności	ok. 1 000 PLN
+Azure SQL Database	Basic Tier – 5 DTUs, tylko dla metadanych, niska aktywność	ok. 900 PLN
+RAZEM  24 200 PLN / rok 
+
+Koszt można obniżyć jeszcze bardziej przez rezerwacje instancji (np. 1-roczne), automatyczne zatrzymywanie klastrów, lub cool/cold storage dla danych archiwalnych.
+Zakres ten jest realistyczny dla firmy z zespołem BI/data 2–5 osób, prowadzącej analizy na ograniczonym zbiorze danych (np. logi, sprzedaż, ERP).
+
+
+2. Delta Lake vs Iceberg
+
+Delta Lake:
+-Natywna integracja z Databricks
+-Idealny wybór dla użytkowników Databricks – domyślny format.
+-Wysoka wydajność w Spark i Databricks
+-Zoptymalizowany pod silnik Spark (Z-Ordering, cachowanie, indexing).
+-Obsługa ACID (transakcje)
+-Bezpieczne i spójne operacje UPDATE, DELETE, MERGE.
+-Time Travel (podróż w czasie)
+-Można cofnąć się do konkretnej wersji danych (VERSION AS OF).
+-Prosty model logowania (_delta_log)
+-Przechowuje zmiany w formie JSON – łatwe do analizy.
+-Obsługa Change Data Feed (CDF)
+-Możliwość śledzenia zmian w danych.
+-Wspiera SCD (Slowly Changing Dimensions)
+-Umożliwia budowę hurtowni z wersjonowanymi danymi.
+-Mniejsze wsparcie dla innych silników niż Spark
+-Działa, ale nieoptymalnie poza Spark/Databricks.
+-Szybsze uruchomienie i konfiguracja
+-Plug&play w Databricks – działa "z pudełka".
+-Silne wsparcie od Databricks i Microsoft
+-Intensywnie rozwijana przez twórców Databricks.
+
+Apache Iceberg:
+-Projekt neutralny technologicznie (open standard)
+-Działa dobrze z Trino, Flink, Hive, Presto, Snowflake itd.
+-Zaawansowane metadane (manifest files)
+-Oddzielna warstwa metadanych poprawiająca skalowalność.
+-Time Travel (snapshoty danych)
+-Bardziej złożony, ale bardzo elastyczny system wersjonowania.
+-ACID bez Spark-a
+-Transakcje wspierane bez konieczności używania Spark.
+-Lepsze wsparcie dla tabel o bardzo dużej liczbie plików
+-Skalowalny przy setkach tysięcy plików.
+-Lepsze wsparcie dla dużych środowisk Data Lake (S3, ADLS)
+-Sprawdza się w systemach o ogromnej liczbie partycji.
+-Zarządzanie partiami i plikami przez manifesty
+-Efektywne filtrowanie plików przed odczytem.
+-Lepsze zarządzanie ewolucją schematu
+-Umożliwia łatwe dodawanie i usuwanie kolumn bez błędów.
+-Wyższa złożoność konfiguracji
+-Wymaga ręcznego dostosowania do silnika i środowiska.
+-Wolniejsze tempo adopcji w Databricks
+-Działa, ale nie jest domyślnym wyborem – brak pełnego wsparcia funkcji.
+
+
+3. Krytyka architektury medalionu
+
+-Złożoność operacyjna -> Większa liczba warstw = więcej pipeline'ów do utrzymania.
+-Wysokie koszty przechowywania -> Dane są dublowane między warstwami.
+-Opóźnienie dostępu do danych -> Dane z Brązu nie są od razu dostępne do analizy.
+-Utrudnione śledzenie lineage -> Trudno prześledzić, jak dokładnie dane przeszły transformacje.
+-Problemy z wersjonowaniem danych -> Aktualizacja danych we wszystkich warstwach wymaga dużego nakładu pracy.
+-Powielanie logiki transformacji -> Często ten sam kod transformacji jest powielany w Silver/Gold.
+-Przeciążenie pipeline'ów -> Systemy orkiestracji są obciążone wieloma krokami.
+-Trudność w walidacji danych końcowych -> Błędy mogą zostać wprowadzone na różnych etapach.
+-Zwiększone ryzyko błędów manualnych -> Więcej warstw = więcej szans na błędy.
+Niepotrzebna warstwa Brązowa -> Jeśli źródła są dobrze oczyszczone – Bronze jest zbędny.
+Nadmiarowa liczba schematów danych -> Każda warstwa ma inne schematy – utrudnia analizę.
+Słaba elastyczność przy szybkim prototypowaniu -> Długa ścieżka danych spowalnia eksperymenty.
+Nieefektywność kosztowa przy małych wolumenach -> Dla małych firm – overkill.
+Trudne do skalowania dynamicznie -> Zmiana schematu w jednej warstwie wymaga aktualizacji innych.
+Wysoki próg wejścia dla zespołu -> Juniorzy mają trudność ze zrozumieniem całej architektury.
+Sztuczny podział danych -> Często dane można przetwarzać bez warstw Silver/Gold.
+Długi czas pełnego przetwarzania danych -> Przejście przez 3 warstwy może trwać godziny.
+Brak jasnej wartości biznesowej każdej warstwy -> Nie zawsze wiadomo, po co konkretnie dane są w Goldzie.
+Rzadko aktualizowane dane w Gold -> Z czasem Gold traci aktualność, a nikt go nie odświeża.
+Trudność we wdrożeniach CI/CD -> Pipeline’y do Brąz/Silver/Gold wymagają testów dla każdej warstwy.
